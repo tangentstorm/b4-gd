@@ -16,7 +16,6 @@ func pop(ia:PackedInt32Array)->int:
 		return res
 
 
-
 func tos(ia:PackedInt32Array)->int:
 	# "top of stack"
 	if ia.size() == 0:
@@ -24,6 +23,7 @@ func tos(ia:PackedInt32Array)->int:
 		return 0
 	else:
 		return ia[ia.size() - 1]
+
 
 func nos(ia:PackedInt32Array)->int:
 	# "next on stack"
@@ -41,7 +41,9 @@ func dpop()->int:	return pop(ds)
 
 
 func run_op(s:String)->bool:
+	# TODO: map these to bytes and dispatch on those
 	match s:
+		"..": return true # no-op
 		"du": ds.push_back(dtos())
 		"dr": cs.push_back(dpop())
 		"rd": ds.push_back(cpop())
@@ -66,9 +68,34 @@ func run_op(s:String)->bool:
 		"le": var a = dpop(); var b = dpop(); ds.push_back(a <= b)
 		"ge": var a = dpop(); var b = dpop(); ds.push_back(a >= b)
 		"zp": dpop() # "zap"
+		"wb": var a = dpop(); var b = dpop(); ram[b] = a
+		"rb": ds.push_back(ram[dpop()])
+		"lb": ds.push_back(ram[ip]); ip += 1
 		_: return false
+	return true
+
+func dis(n:int) -> String:
+	var op = n & 0xFF
+	if op == 0: return '..'
+	if op < 0: return '??'
+	if op < 32: return '^' + char(op+64) # 64=ord('@')
+	if op < 128: return "'" + char(op)
+	if op > 256:
+		printerr("dis: op out of range: ", op)
+		return '??'
+	match op:
+		0x7F: return '^?'
+		0x80: return 'lb'
+	return '%02X' % op
+
+func step():
+	var op = dis(ram[ip]) # TODO: avoid round-trip through string
+	ip += 1
+	if not run_op(op):
+		print("step: unknown op [",op,"=", ram[ip-1],"] at ram[",ip-1,"]")
+		return false
 	return true
 
 
 func _init():
-	pass
+	ram.resize(1024)
