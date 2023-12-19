@@ -50,12 +50,16 @@ func cput(n:int): cs.push_back(n)
 
 func todo(s:String): print("TODO: ", s)
 
+func geti(addr:int)->int:
+	# fetch a 32-bit little-endian integer from ram
+	return ram[addr] | (ram[addr+1] << 8) | (ram[addr+2] << 16) | (ram[addr+3] << 24)
+
 func run_op(s:String)->bool:
 	# TODO: map these to bytes and dispatch on those
 	match s:
 		"..": return true # no-op
 		"lb": dput(ram[ip]); ip += 1 # "load byte"
-		"li": todo("li")
+		"li": dput(geti(ip)); ip += 4 # "load integer"
 		"du": dput(dtos())
 		"ov": dput(dnos())
 		"sw": var a = dpop(); var b = dpop(); dput(a); dput(b)
@@ -80,6 +84,7 @@ func run_op(s:String)->bool:
 		"rt": ip = cpop()
 		"wb": var a = dpop(); var b = dpop(); ram[b] = a
 		"rb": dput(ram[dpop()])
+		"ri": dput(geti(dpop()))
 		_: return false
 	return true
 
