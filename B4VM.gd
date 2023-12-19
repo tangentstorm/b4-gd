@@ -54,6 +54,13 @@ func geti(addr:int)->int:
 	# fetch a 32-bit little-endian integer from ram
 	return ram[addr] | (ram[addr+1] << 8) | (ram[addr+2] << 16) | (ram[addr+3] << 24)
 
+func puti(addr:int, n:int):
+	# write 32-bit int as little-endian bytes to ram
+	ram[addr] = n & 0xFF
+	ram[addr+1] = (n >> 8) & 0xFF
+	ram[addr+2] = (n >> 16) & 0xFF
+	ram[addr+3] = (n >> 24) & 0xFF
+
 func run_op(s:String)->bool:
 	# TODO: map these to bytes and dispatch on those
 	match s:
@@ -85,6 +92,7 @@ func run_op(s:String)->bool:
 		"wb": var a = dpop(); var b = dpop(); ram[b] = a
 		"rb": dput(ram[dpop()])
 		"ri": dput(geti(dpop()))
+		"wi": var v = dpop(); puti(dpop(), v)
 		_: return false
 	return true
 
