@@ -1,3 +1,6 @@
+"""
+Hello
+"""
 extends SceneTree
 
 const B4VM = preload("res://B4VM.gd")
@@ -50,6 +53,8 @@ func asm_tok(s:String)->int:
 				_: return s.hex_to_int()
 		return 0
 
+func ord(s:String)->int:
+	return s.to_ascii_buffer()[0]
 
 func _init():
 	var get_cmds = make_input_stream()
@@ -72,9 +77,15 @@ func _init():
 				"?i": print('ip: ', '$%X' % vm.ip)
 				_:
 					if cmd[0]=="@": print(get_mem(vm, cmd.right(-1).hex_to_int()))
+					elif cmd[0]=="'":
+						if len(cmd) > 1: vm.dput(cmd[1].to_ascii_buffer()[0])
+						else: vm.dput(32) # ord(' ')
+					elif cmd[0]=="`":
+						if len(cmd) != 2: print("malformed dictionary address: ", cmd)
+						else: vm.dput(4*(ord(cmd[1])-64))
 					elif vm.run_op(cmd): pass
 					elif cmd.is_valid_hex_number() and (cmd==cmd.to_upper()):
-						vm.ds.append(cmd.hex_to_int())
+						vm.dput(cmd.hex_to_int())
 					else:
 						print("!! what does '",cmd,"' mean?")
 						done = true
