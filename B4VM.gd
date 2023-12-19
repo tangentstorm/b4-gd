@@ -92,7 +92,10 @@ func run_op(s:String)->bool:
 		"wb": var a = dpop(); var b = dpop(); ram[b] = a
 		"rb": dput(ram[dpop()])
 		"ri": dput(geti(dpop()))
-		"wi": var v = dpop(); puti(dpop(), v)
+		"wi": var adr = dpop(); var val = dpop(); puti(adr, val)
+		"rx": var adr = (4*24); var ptr = geti(adr); puti(adr, ptr+4); dput(geti(ptr))
+		"ry": var adr = (4*25); var ptr = geti(adr); puti(adr, ptr+4); dput(geti(ptr))
+		"wz": var adr = (4*26); var ptr = geti(adr); puti(adr, ptr+4); puti(ptr, dpop())
 		_: return false
 	return true
 
