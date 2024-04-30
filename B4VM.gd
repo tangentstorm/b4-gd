@@ -16,6 +16,9 @@ enum Op {
 	RB, WB, RI, WI,
 	DB=0xFE, HL}
 
+var opk = Op.keys()
+var opv = Op.values()
+
 func pop(ia:PackedInt32Array)->int:
 	if ia.size() == 0:
 		printerr("stack underflow")
@@ -62,12 +65,22 @@ func puti(addr:int, n:int):
 	ram[addr+2] = (n >> 16) & 0xFF
 	ram[addr+3] = (n >> 24) & 0xFF
 
+
+func _go(a): ip = max(0x100,a)-1
+
+func _i8(a) -> int:
+	var r=ram[a]
+	if (r>=0x80): r=-(r&0x7F)-1
+	return r
+
+func _hop(): _go(ip+_i8(ip+1))
+
 func run_op(s:String)->bool:
 	# TODO: map these to bytes and dispatch on those
 	match s:
 		"..": return true # no-op
-		"lb": dput(ram[ip]); ip += 1 # "load byte"
-		"li": dput(geti(ip)); ip += 4 # "load integer"
+		"lb": dput(ram[ip+1]); ip += 1 # "load byte"
+		"li": dput(geti(ip+1)); ip += 3 # "load integer"
 		"du": dput(dtos())
 		"ov": dput(dnos())
 		"sw": var a = dpop(); var b = dpop(); dput(a); dput(b)
@@ -86,17 +99,24 @@ func run_op(s:String)->bool:
 		"nt": var a = dpop(); dput(~a)
 		"eq": var a = dpop(); var b = dpop(); dput(-int(b == a))
 		"lt": var a = dpop(); var b = dpop(); dput(-int(b < a))
-		"hp": todo("hp")
-		"h0": todo("h0")
-		"cl": todo("cl")
-		"rt": ip = cpop()
-		"wb": var a = dpop(); var b = dpop(); ram[b] = a
+		"wb": var a = dpop(); var b = dpop(); ram[a] = b
 		"rb": dput(ram[dpop()])
 		"ri": dput(geti(dpop()))
 		"wi": var adr = dpop(); var val = dpop(); puti(adr, val)
 		"rx": var adr = (4*24); var ptr = geti(adr); puti(adr, ptr+4); dput(geti(ptr))
 		"ry": var adr = (4*25); var ptr = geti(adr); puti(adr, ptr+4); dput(geti(ptr))
 		"wz": var adr = (4*26); var ptr = geti(adr); puti(adr, ptr+4); puti(ptr, dpop())
+		"hp": _hop()
+		"h0":
+			if dpop() == 0: _hop()
+			else: ip += 1
+		"jm": _go(geti(ip+1))
+		"cl": cput(ip+4); _go(geti(ip+1))
+		"rt": _go(cpop())
+		"nx":
+				if ctos()>0: cput(cpop()-1)
+				if ctos()==0: cpop(); ip += 1
+				else: _hop()
 		_: return false
 	return true
 
@@ -109,17 +129,17 @@ func dis(n:int) -> String:
 	if op > 256:
 		printerr("dis: op out of range: ", op)
 		return '??'
-	match op:
-		0x7F: return '^?'
-		0x80: return 'lb'
+	for i in range(len(opv)):
+		if opv[i] == op:
+			return opk[i].to_lower()
 	return '%02X' % op
 
 func step():
 	var op = dis(ram[ip]) # TODO: avoid round-trip through string
-	ip += 1
 	if not run_op(op):
-		print("step: unknown op [",op,"=", ram[ip-1],"] at ram[",ip-1,"]")
+		print("step: unknown op [",op,"=", ram[ip],"] at ram[",ip,"]")
 		return false
+	ip += 1
 	return true
 
 func _init():
