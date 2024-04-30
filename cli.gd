@@ -48,9 +48,11 @@ func asm_tok(s:String)->int:
 	else:
 		match s[0]:
 			"'": return s.to_ascii_buffer()[1]
-			_: match s:
-				'lb': return 0x80
-				_: return s.hex_to_int()
+			_:
+				if s == '..': return 0
+				var op = B4VM.Op.get(s.to_upper(), -1)
+				if op == -1: return s.hex_to_int()
+				else: return op
 		return 0
 
 func ord(s:String)->int:
