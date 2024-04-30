@@ -11,9 +11,10 @@ enum Op {
 	AD, SB, ML, DV, MD, SH,
 	AN, OR, XR, NT,
 	EQ, LT,
-	HP, H0, CL, RT,
+	JM, HP, H0, CL, RT, NX,
 	IO, MV,
-	RB, WB, RI, WI, NX, DB }
+	RB, WB, RI, WI,
+	DB=0xFE, HL}
 
 func pop(ia:PackedInt32Array)->int:
 	if ia.size() == 0:
