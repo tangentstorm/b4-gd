@@ -19,7 +19,7 @@ func make_input_stream():
 
 func hexdump(data:PackedInt32Array) -> String:
 	var toks = []
-	for n in data: toks.append('$%X' % n)
+	for n in data: toks.append('%X' % n)
 	return '[' + ' '.join(toks) + ']'
 
 
@@ -74,7 +74,7 @@ func _init():
 				"%s": vm.step()
 				"?d": print('ds: ', hexdump(vm.ds))
 				"?c": print('cs: ', hexdump(vm.cs))
-				"?i": print('ip: ', '$%X' % vm.ip)
+				"?i": print('ip: ', '%X' % vm.ip)
 				_:
 					if cmd[0]=="@": print(get_mem(vm, cmd.right(-1).hex_to_int()))
 					elif cmd[0]=="'":
