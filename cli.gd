@@ -65,7 +65,7 @@ func _init():
 	while not done:
 		var line = get_cmds.call()
 		if line == "": continue
-		if line[0]=="!":
+		if line[0]==":":
 			put_mem(vm, line)
 			continue
 		var cmds = line.split(" ")
@@ -78,7 +78,7 @@ func _init():
 				"?c": print('cs: ', hexdump(vm.cs))
 				"?i": print('ip: ', '%X' % vm.ip)
 				_:
-					if cmd[0]=="@": print(get_mem(vm, cmd.right(-1).hex_to_int()))
+					if cmd[0]=="?": print(get_mem(vm, cmd.right(-1).hex_to_int()))
 					elif cmd[0]=="'":
 						if len(cmd) > 1: vm.dput(cmd[1].to_ascii_buffer()[0])
 						else: vm.dput(32) # ord(' ')
