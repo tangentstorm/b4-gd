@@ -4,20 +4,28 @@ var ds = PackedInt32Array() # data stack
 var cs = PackedInt32Array() # call stack
 var ram = PackedByteArray() # ram
 var ip = 0x100
+var vw = 4 # value width in bytes
 
 enum Op {
 	EX = 0x7F,
-	LB, LI, DU, SW, OV, ZP, DC, CD,
 	AD, SB, ML, DV, MD, SH,
-	AN, OR, XR, NT,
-	EQ, LT,
+	AN, OR, XR, NT, EQ, LT,
+	DU, SW, OV, ZP, DC, CD,
+	RV, WV, LB, LI,
 	JM, HP, H0, CL, RT, NX,
-	IO, MV,
-	RB, WB, RI, WI,
+	VB=0xC0, VI,
 	DB=0xFE, HL}
 
 var opk = Op.keys()
 var opv = Op.values()
+
+func clear():
+	ds.clear()
+	cs.clear()
+	ram.clear()
+	ram.resize(1024)
+	ip = 0x100
+	vw = 4
 
 func pop(ia:PackedInt32Array)->int:
 	if ia.size() == 0:
@@ -65,7 +73,6 @@ func puti(addr:int, n:int):
 	ram[addr+2] = (n >> 16) & 0xFF
 	ram[addr+3] = (n >> 24) & 0xFF
 
-
 func _go(a): ip = max(0x100,a)-1
 
 func _i8(a) -> int:
@@ -74,19 +81,15 @@ func _i8(a) -> int:
 	return r
 
 func _hop(): _go(ip+_i8(ip+1))
+func _rb(): dput(ram[dpop()])
+func _ri(): dput(geti(dpop()))
+func _wi(): var a = dpop(); var v = dpop(); puti(a, v)
+func _wb(): var a = dpop(); var b = dpop(); ram[a] = b
 
 func run_op(s:String)->bool:
 	# TODO: map these to bytes and dispatch on those
 	match s:
 		"..": return true # no-op
-		"lb": dput(ram[ip+1]); ip += 1 # "load byte"
-		"li": dput(geti(ip+1)); ip += 3 # "load integer"
-		"du": dput(dtos())
-		"ov": dput(dnos())
-		"sw": var a = dpop(); var b = dpop(); dput(a); dput(b)
-		"zp": dpop() # "zap"
-		"dc": cput(dpop())
-		"cd": dput(cpop())
 		"ad": var a = dpop(); var b = dpop(); dput(b + a)
 		"sb": var a = dpop(); var b = dpop(); dput(b - a)
 		"ml": var a = dpop(); var b = dpop(); dput(b * a)
@@ -99,17 +102,20 @@ func run_op(s:String)->bool:
 		"nt": var a = dpop(); dput(~a)
 		"eq": var a = dpop(); var b = dpop(); dput(-int(b == a))
 		"lt": var a = dpop(); var b = dpop(); dput(-int(b < a))
-		"wb": var a = dpop(); var b = dpop(); ram[a] = b
-		"rb": dput(ram[dpop()])
-		"ri": dput(geti(dpop()))
-		"wi": var adr = dpop(); var val = dpop(); puti(adr, val)
-		"rx": var adr = (4*24); var ptr = geti(adr); puti(adr, ptr+4); dput(geti(ptr))
-		"ry": var adr = (4*25); var ptr = geti(adr); puti(adr, ptr+4); dput(geti(ptr))
-		"wz": var adr = (4*26); var ptr = geti(adr); puti(adr, ptr+4); puti(ptr, dpop())
+		"du": dput(dtos())
+		"ov": dput(dnos())
+		"sw": var a = dpop(); var b = dpop(); dput(a); dput(b)
+		"zp": dpop() # "zap"
+		"dc": cput(dpop())
+		"cd": dput(cpop())
+		"wv": _wb() if vw == 1 else _wi()
+		"rv": _rb() if vw == 1 else _ri()
+		"vb": vw = 1
+		"vi": vw = 4
+		"lb": dput(ram[ip+1]); ip += 1 # "load byte"
+		"li": dput(geti(ip+1)); ip += 3 # "load integer"
 		"hp": _hop()
-		"h0":
-			if dpop() == 0: _hop()
-			else: ip += 1
+		"h0": _go(ip+2) if dpop() else _hop()
 		"jm": _go(geti(ip+1))
 		"cl": cput(ip+4); _go(geti(ip+1))
 		"rt": _go(cpop())
@@ -124,8 +130,11 @@ func dis(n:int) -> String:
 	var op = n & 0xFF
 	if op == 0: return '..'
 	if op < 0: return '??'
-	if op < 32: return '^' + char(op+64) # 64=ord('@')
-	if op < 128: return "'" + char(op)
+	# if op < 128: return "'" + char(op)
+	if op < 0x20: return '^' + char(64+op) # 64=ord('@')
+	if op < 0x40: return '@' + char(64+op-0x20)
+	if op < 0x60: return '!' + char(64+op-0x40)
+	if op < 0x80: return '+' + char(64+op-0x60)
 	if op > 256:
 		printerr("dis: op out of range: ", op)
 		return '??'
@@ -143,4 +152,4 @@ func step():
 	return true
 
 func _init():
-	ram.resize(1024)
+	clear()

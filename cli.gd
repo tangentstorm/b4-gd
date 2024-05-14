@@ -58,6 +58,8 @@ func asm_tok(s:String)->int:
 func ord(s:String)->int:
 	return s.to_ascii_buffer()[0]
 
+const REGS = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+
 func _init():
 	var get_cmds = make_input_stream()
 	var vm = B4VM.new()
@@ -72,6 +74,7 @@ func _init():
 		for cmd in cmds:
 			if done: break
 			match cmd:
+				"%C": vm.clear()
 				"%q": done = true
 				"%s": vm.step()
 				"?d": print('ds: ', hexdump(vm.ds))
@@ -88,6 +91,14 @@ func _init():
 					elif vm.run_op(cmd): pass
 					elif cmd.is_valid_hex_number() and (cmd==cmd.to_upper()):
 						vm.dput(cmd.hex_to_int())
+					elif len(cmd)==2 and cmd[0] in "!@+`" and cmd[1] in REGS:
+						var ra = 4*ord(cmd[1])-64
+						match cmd[0]:
+							"!": vm.puti(ra, vm.dpop())
+							"@": vm.dput(vm.geti(ra))
+							"+": var v=vm.geti(ra); vm.dput(v); vm.puti(ra, v+vm.vw)
+							"`": vm.dput(ra)
+							_: print("!! what does '",cmd,"' mean?"); done=true
 					else:
 						print("!! what does '",cmd,"' mean?")
 						done = true
