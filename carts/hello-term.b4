@@ -1,0 +1,37 @@
+# hello-term — TermGrid / tm spike (arcade #45 Phase 1)
+#
+# Prints a short colored hello via host opcode tm (0xBE), matching Pascal
+# uhw_vt / b4f wrappers: ts=clear, tg=goto, ta=attr, tw=emit.
+#
+# Next (mineswpr): rewrite board draw + mswp' shell in b4 against this device
+# (put/puts or tg/tw/ts/ta). Keep arcade Direct/Enhanced GDScript editions.
+
+__code__
+:M
+  lb 's tm
+  c0 c0 lb 'g tm
+  lb 0B lb 'a tm
+  lb 'h lb 'e tm
+  lb 'e lb 'e tm
+  lb 'l lb 'e tm
+  lb 'l lb 'e tm
+  lb 'o lb 'e tm
+  lb 20 lb 'e tm
+  lb 't lb 'e tm
+  lb 'e lb 'e tm
+  lb 'r lb 'e tm
+  lb 'm lb 'e tm
+  c0 c1 lb 'g tm
+  lb 0E lb 'a tm
+  lb 'c lb 'e tm
+  lb 'o lb 'e tm
+  lb 'l lb 'e tm
+  lb 'o lb 'e tm
+  lb 'r lb 'e tm
+  lb 20 lb 'e tm
+  lb 0A lb 'a tm
+  lb 'o lb 'e tm
+  lb 'k lb 'e tm
+  rt
+;
+^M
