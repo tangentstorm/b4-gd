@@ -1,0 +1,151 @@
+# mineswpr-logic -- the game words of mineswpr.org, in b4 (arcade #45 Phase 2)
+#
+# Ports the logic headings of tangentstorm/gitweb mineswpr.org (Retro Forth 11,
+# 2013) to b4 words, matching arcade games/mineswpr/direct/mineswpr_logic.gd.
+# No draw, no mswp shell yet (Phase 3).
+#
+# Cell bit layout (same as the original and arcade Direct):
+#   bit 0 = mine   bit 1 = cover   bit 2 = flag
+#   bits 8.. = armed neighbor count ($100 per armed neighbor)
+# Cells are 32-bit words; a "cell" c on the stack is an index 0..FF
+# (c = y*10+x, hex), like Direct.  c>a turns it into a ram address.
+#
+# Registers (variables):
+#   G = grid base address     N = mineCount (18 hex = 24)
+#   F = flagCount             O = gameOver? (0 / -1)
+#   K = active-cell (-1 = none; kept for the Phase 3 shell)
+#   I J X Y = scratch for loops (words using them do not nest)
+#
+# Host op: rn ( n - r ) random 0..n-1 (game/B4Rand.gd, opcode $BD).
+#
+# Notes for the b4-gd assembler: tokens are split on spaces only, labels must
+# be defined before use, and .i/.d hops reach at most 7E bytes forward.
+
+__code__
+
+# -- variables / grid-setup (immediate: runs while the cart assembles) -----
+$8000 !G
+18 !N
+0 !F
+0 !O
+-1 !K
+
+# -- point methods ------------------------------------------------------------
+# c>a ( c - a )
+:c>a  c4 ml @G ad rt ;
+# cell ( x y - c )
+:cell  lb 10 ml ad rt ;
+# c>xy ( c - x y )
+:c>xy  du lb 10 md sw lb 10 dv rt ;
+# inbounds? : true when both x and y are in 0..F ( x y - f )
+:inbounds?  or ls F0 an c0 eq rt ;
+
+# -- cell methods ---------------------------------------------------------------
+# has? ( c e - f )
+:has?  sw c>a rv sw n1 ml sh c1 an rt ;
+# incl ( c e - )
+:incl  c1 sw sh sw c>a du rv sw dc or cd wv rt ;
+# excl ( c e - )
+:excl  c1 sw sh nt sw c>a du rv sw dc an cd wv rt ;
+# uncover ( c - )
+:uncover  c1 excl rt ;
+# armed-neighbor-count ( c - n )
+:armed-neighbor-count  c>a rv ls F8 sh rt ;
+# armed-neighbor-add ( c - )
+:armed-neighbor-add  c>a du rv li $100 ad sw wv rt ;
+# randcell ( - c )
+:randcell  lb 10 rn lb 10 rn cell rt ;
+
+# -- floodfill --------------------------------------------------------------------
+# needs-visit? ( c - f )
+:needs-visit?  c1 has? rt ;
+# keep-going? ( c - f )
+:keep-going?  armed-neighbor-count c0 eq rt ;
+# flood ( x y - ) uncover from x y; spread through the cardinal neighbors
+# (n w e s) of zero cells only.  Like the original it ignores flags: a flagged
+# cell is uncovered but keeps its flag bit.
+:flood
+  ov ov inbounds? .i
+    cell
+    du needs-visit? .i
+      du uncover
+      du keep-going? .i
+        du c>xy n1 ad flood
+        du c>xy sw n1 ad sw flood
+        du c>xy sw c1 ad sw flood
+        du c>xy c1 ad flood
+      .t
+    .t
+    zp
+  .e zp zp .t
+  rt ;
+
+# -- event handlers -------------------------------------------------------------
+# dead ( - )
+:dead  n1 !O rt ;
+
+# -- user actions -----------------------------------------------------------------
+# flaggable? : covered and not flagged  ( c - f )
+:flaggable?  c>a rv lb 06 an c2 eq rt ;
+# flag+ ( c - )
+:flag+  du flaggable? .i c2 incl c1 +F zp .e zp .t rt ;
+# flag- ( c - )
+:flag-  du c2 has? .i c2 excl n1 +F zp .e zp .t rt ;
+# prod ( c - ) removes any flag first, then detonates or floods.
+:prod  du flag- du c0 has? .i zp dead .e c>xy flood .t rt ;
+
+# -- minefield words ----------------------------------------------------------------
+# mine-set ( c - )
+:mine-set  c0 incl rt ;
+# nbr-add ( x y - ) armed-neighbor-add on x y if it is on the board
+:nbr-add  ov ov inbounds? .i cell armed-neighbor-add .e zp zp .t rt ;
+# mine-hints ( c - ) if c holds a mine, bump all eight neighbors
+:mine-hints
+  du c0 has? .i
+    c>xy !Y !X
+    @X n1 ad @Y n1 ad nbr-add
+    @X @Y n1 ad nbr-add
+    @X c1 ad @Y n1 ad nbr-add
+    @X n1 ad @Y nbr-add
+    @X c1 ad @Y nbr-add
+    @X n1 ad @Y c1 ad nbr-add
+    @X @Y c1 ad nbr-add
+    @X c1 ad @Y c1 ad nbr-add
+  .e zp .t
+  rt ;
+# hints-create ( - )
+:hints-create
+  c0 !I
+  .w @I li $100 lt .d
+    @I mine-hints
+    c1 +I zp
+  .o rt ;
+# mine-add ( - ) a mine in a random cell that does not yet have one
+:mine-add  randcell du c0 has? .i zp mine-add .e mine-set .t rt ;
+# grid-fill ( - ) every cell = cover only
+:grid-fill
+  c0 !I
+  .w @I li $100 lt .d
+    c2 @I c>a wv
+    c1 +I zp
+  .o rt ;
+# game-reset ( - )
+:game-reset  c0 !F c0 !O n1 !K rt ;
+# game-new ( - )
+:game-new
+  grid-fill
+  @N !J
+  .w @J .d
+    mine-add
+    n1 +J zp
+  .o
+  hints-create game-reset rt ;
+
+# -- extras (not in the original; for tests and the Phase 3 side panel) ----------
+# covered-count ( - n )
+:covered-count
+  c0 c0 !I
+  .w @I li $100 lt .d
+    @I c1 has? ad
+    c1 +I zp
+  .o rt ;
