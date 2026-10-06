@@ -14,12 +14,15 @@ const ENTRY_WORDS := ["keys", "exec", "blink", "draw", "has?", "cell"]
 const EXEC_BUF := 0x9700 ## scratch line for exec (mouse clicks)
 const KEY_ENTER := 13
 const KEY_BACKSPACE := 8
+const OP_SS := 0xBC  ## shell stack device (full Godot ints)
+const SS_MAX := 256
 
 var vm: B4VM
 var term: B4Term
 var rnd: B4Rand
 var words := {} ## entry word -> address
 var steps_guard := 5000000
+var shell_stack: Array[int] = []
 
 
 ## Assemble the carts against grid. seed_value < 0 randomizes the minefield.
@@ -33,6 +36,8 @@ func boot(grid: TermGrid, seed_value: int = -1) -> String:
 	term.setup(vm, grid)
 	rnd = B4RandScript.new()
 	rnd.setup(vm, seed_value)
+	shell_stack.clear()
+	vm.add_op(OP_SS, "ss", _ss)
 	var code := PackedStringArray()
 	for path in CARTS:
 		var text := FileAccess.get_file_as_string(path)
@@ -108,7 +113,38 @@ func quit_requested() -> bool:
 	return reg("Z") != 0
 
 
+
+## Shell stack device (ss): keeps full Godot ints so FFFFFFFF != -1.
+##   'p' (n -)  push (dropped when full)
+##   'o' (- n)  pop (0 if empty)
+##   's' (- n)  depth
+##   'i' (i - n) cell i (0 if OOB)
+##   'c' (-)    clear
+func _ss() -> void:
+	var cmd := vm.dpop_char()
+	match cmd:
+		"p":
+			var n: int = vm.dpop()
+			if shell_stack.size() < SS_MAX:
+				shell_stack.push_back(n)
+		"o":
+			vm.dput(shell_stack.pop_back() if shell_stack.size() > 0 else 0)
+		"s":
+			vm.dput(shell_stack.size())
+		"i":
+			var i: int = vm.dpop()
+			if i >= 0 and i < shell_stack.size():
+				vm.dput(shell_stack[i])
+			else:
+				vm.dput(0)
+		"c":
+			shell_stack.clear()
+		_:
+			push_warning("ss: unknown cmd '%s'" % cmd)
+
+
 func dispose() -> void:
+	shell_stack.clear()
 	if vm:
 		vm.free()
 		vm = null

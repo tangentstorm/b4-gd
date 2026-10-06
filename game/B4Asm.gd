@@ -58,7 +58,7 @@ static func _is_reg_op(tok: String) -> bool:
 	return tok.length() == 2 and tok[0] in "^@!+`" and REGS.contains(tok[1])
 
 static func _is_named_op(vm: B4VM, tok: String) -> bool:
-	if tok in ["..", "c0", "c1", "c2", "n1", "c4", "gm", "tm", "ls"]:
+	if tok in ["..", "c0", "c1", "c2", "n1", "c4", "gm", "tm", "ss", "ls"]:
 		return true
 	if vm._custom_names.has(tok):
 		return true

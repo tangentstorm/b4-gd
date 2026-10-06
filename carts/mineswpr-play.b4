@@ -22,12 +22,13 @@
 #   D V M = number parser scratch (pointer, value/count, neg)
 #   E = error token length  H = end of the line being parsed
 #   L = input line length   P = parse pointer    R = draw row
-#   S = shell stack depth   T U = token start / length
+#   T U = token start / length
 #   W = length of the "last:" command            Z = quit requested
 #
 # Buffers: $9000 input line, $9100 error token, $9180 last command,
-# $9200 shell stack (256 cells), $9700 exec buffer for the host.
-# Writes use wv (4 bytes), so every buffer has slack after its max length.
+# $9700 exec buffer for the host (MineswprCart.EXEC_BUF).
+# Shell stack is host-backed (ss device) so cells stay full Godot ints
+# (FFFFFFFF stays unsigned; -2 stays signed), matching Direct.
 
 __code__
 
@@ -54,17 +55,19 @@ __code__
 # dec. ( n - ) n >= 0
 :dec.  du lb 0A dv du .i dec. .e zp .t lb 0A md lb 30 ad emit rt ;
 
-# -- shell stack --------------------------------------------------------------
-0 !L  0 !S  0 !E  0 !W  0 !Z  -1 !A  -1 !B
-:ustk  c4 ml li $9200 ad rt ;
-# upush ( n - ) ignored when the stack is full (256 cells)
-:upush  @S li $100 lt .i @S ustk wv c1 +S zp .e zp .t rt ;
+# -- shell stack (host ss device: full Godot ints, like Direct) ---------------
+0 !L  0 !E  0 !W  0 !Z  -1 !A  -1 !B
+:sclear  lb 'c ss rt ;
+:sdepth  lb 's ss rt ;
+# upush ( n - ) ignored when the stack is full (256 cells; host enforces)
+:upush  lb 'p ss rt ;
 # upop ( - n )
-:upop  n1 +S c1 sb ustk rv rt ;
+:upop  lb 'o ss rt ;
 # stack. ( - ) "<depth> n n ..."
 :stack.
-  lb '< emit @S dec. lb '> emit
-  c0 .w du @S lt .d du ustk rv lb 20 emit num. c1 ad .o zp rt ;
+  lb '< emit sdepth dec. lb '> emit
+  c0 .w du sdepth lt .d du lb 'i ss lb 20 emit num. c1 ad .o zp rt ;
+sclear
 
 # -- the cells (draw-cells) ---------------------------------------------------------
 # glyph ( c - ch ink hide )
@@ -187,7 +190,7 @@ __code__
   ml @M .i c0 sw sb .t n1 rt ;
 # cell-ok? ( - c -1 | 0 ) if-cell-ok: pop y x; on the board -> active-cell
 :cell-ok?
-  @S c2 lt .i c0 rt .t
+  sdepth c2 lt .i c0 rt .t
   upop upop sw
   ov ov inbounds? .i cell du !K n1 rt .t
   zp zp c0 rt ;
@@ -205,8 +208,8 @@ __code__
   a-f .i rt .t
   lb 'r tok1 .i game-new rt .t
   lb 'q tok1 .i n1 !Z rt .t
-  tok" 'p'l'a'y 00 .i c0 !S game-new rt .t
-  tok" 'r'e's'e't 00 .i c0 !S rt .t
+  tok" 'p'l'a'y 00 .i sclear game-new rt .t
+  tok" 'r'e's'e't 00 .i sclear rt .t
   hex? .i upush rt .t
   bad rt ;
 :pbyte  @P sbyte rt ;
@@ -230,16 +233,19 @@ __code__
 :exec  ov ov eval remember @K !A n1 !K draw rt ;
 
 # -- line editor + host entry points ------------------------------------------------
-:enter  n1 !B @L c0 !L li $9000 sw exec rt ;
-:rubout  @L .i n1 +L zp .t n1 !B prompt. rt ;
-:addch  @L lb 46 lt .i @L li $9000 ad wv c1 +L zp .e zp .t n1 !B prompt. rt ;
+# Line editor: redraw with the current blink state (Direct renders a key with
+# the previous cursor on/off, then forces the cursor on). keys sets B at the
+# end with no extra redraw so the next blink period starts from on.
+:enter  @L c0 !L li $9000 sw exec rt ;
+:rubout  @L .i n1 +L zp .t prompt. rt ;
+:addch  @L lb 46 lt .i @L li $9000 ad wv c1 +L zp .e zp .t prompt. rt ;
 # key ( ch - )
 :key
   du lb 0D eq ov lb 0A eq or .i zp enter rt .t
   du lb 08 eq ov lb 7F eq or .i zp rubout rt .t
   du lb 20 lt ov lb 7E sw lt or .i zp rt .t
   addch rt ;
-:keys  .w lb 'k tm .d lb 'r tm key .o rt ;
+:keys  .w lb 'k tm .d lb 'r tm key .o n1 !B rt ;
 :blink  @B c0 eq !B prompt. rt ;
 
 # -- mineswpr-play: no autowrap (Direct clips at column 80), new game, draw ----------
