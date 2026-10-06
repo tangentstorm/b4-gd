@@ -3,8 +3,8 @@ class_name B4VM
 
 ## b4 VM — extended for gm / game loop while keeping cli.gd ops working.
 
-var ds = PackedInt32Array() # data stack
-var cs = PackedInt32Array() # call stack
+var ds: Array[int] = [] # data stack (64-bit Godot ints; PackedInt32Array wrapped FFFFFFFF to -1)
+var cs: Array[int] = [] # call stack
 var ram = PackedByteArray() # ram
 var ip = 0x100
 var vw = 4 # value width in bytes
@@ -73,7 +73,7 @@ func here() -> int:
 func set_here(a: int) -> void:
 	_sr("_", a)
 
-func pop(ia: PackedInt32Array) -> int:
+func pop(ia: Array) -> int:
 	if ia.size() == 0:
 		printerr("stack underflow")
 		return 0
@@ -82,14 +82,14 @@ func pop(ia: PackedInt32Array) -> int:
 		ia.resize(ia.size() - 1)
 		return res
 
-func tos(ia: PackedInt32Array) -> int:
+func tos(ia: Array) -> int:
 	if ia.size() == 0:
 		printerr("stack underflow")
 		return 0
 	else:
 		return ia[ia.size() - 1]
 
-func nos(ia: PackedInt32Array) -> int:
+func nos(ia: Array) -> int:
 	if ia.size() < 2:
 		printerr("stack underflow")
 		return 0

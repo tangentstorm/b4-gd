@@ -114,21 +114,22 @@ striped brackets `|c`/`|K`, `|k` to hide them, and `|m` for the active cell.
 Registers used by the play cart are `A B C D E H L M P R S T U V W Z`, all
 listed at the top of the cart. Buffers are at `$9000`-`$97FF`.
 
-### Phase 3 gaps (still open)
+### Phase 3 gaps
 
 - **Hover** is done, host-side (see Play above), because a cart redraw is too
   slow for every mouse move.
-- The side panel still says `Esc menu` for parity with Direct; here Esc
-  closes the window.
-- **Cursor blink:** the cart turns the cursor on at each key. Direct renders a
-  keypress with the previous blink state. The golden has the cursor on.
-- **32-bit cells:** a number above `7FFFFFFF` wraps (`FFFFFFFF` shows as `-1`,
-  where Direct shows `FFFFFFFF`). This is not in the golden. The shell stack
-  holds 256 cells and ignores pushes beyond that. Direct has no limit.
+- **Esc label:** the cart still draws Direct's `Esc menu` (arcade PauseOverlay).
+  The standalone scene overwrites it to `Esc quit` after each cart call.
+- **Cursor blink:** done. Key redraws keep the previous blink state; `keys`
+  forces the cursor on afterward with no extra redraw (Direct's order). Goldens
+  still see the cursor on (no blink between proof keys).
+- **32-bit cells:** done. `B4VM.ds` is `Array[int]` (was `PackedInt32Array`,
+  which wrapped `FFFFFFFF` to `-1`), and the shell stack is host-backed (`ss`)
+  so cells stay full Godot ints like Direct. Cap remains 256 (Direct has none).
 - `flood-cursor` (a debug display) is not ported. It is always -1 when Direct
-  draws.
-- `q` halts the cart in the scene. There is no arcade to return to yet
-  (Phase 4: arcade edition host).
+  draws. Skipped (debug-only).
+- `q` halts the cart in the standalone scene; arcade's mineswpr_b4 host returns
+  to the gallery.
 - Each full redraw costs about 25k VM steps, roughly 90 ms. That is fine for
   typed play, but too slow to redraw on every mouse move.
 
@@ -221,3 +222,7 @@ gameOver?, and `K` active-cell (-1, for Phase 3). `I J X Y` are scratch.
   to nothing and only printed a warning. All carts still assemble.
 - `B4VM.step` caches opcode names. `dis()` scanned the opcode enum on every
   step, and a full redraw now takes about 90 ms instead of about 130 ms.
+- `B4VM.ds` / `cs` are `Array[int]` (64-bit). `PackedInt32Array` made
+  `FFFFFFFF` wrap to `-1` during `hex?`.
+- Shell stack device `ss` (0xBC) on `MineswprCart`: full-int push/pop so
+  stack cells match Direct after `upush` (RAM `wv`/`rv` are still 32-bit).

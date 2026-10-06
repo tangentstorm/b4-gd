@@ -12,8 +12,9 @@ extends Control
 ## and put back after, so the cart never sees it and its draws never wipe it.
 ## F2 boots a fresh cart. `q` halts the cart (the original's exit hook).
 ##
-## Esc closes the window (Direct's side panel says "Esc menu": in the arcade it
-## opens the pause menu).
+## Esc closes the window. The cart still draws Direct's "Esc menu" (arcade
+## PauseOverlay); this standalone host overwrites it to "Esc quit" after each
+## cart call so the label matches the key.
 ##
 ## Args (after --): --seed <n> fixed minefield; --proof smoke (types a short
 ## game through the real key path, prints the screen, exits 0 if the cart ran
@@ -57,6 +58,7 @@ func _boot() -> void:
 	_unlight()
 	var err: String = cart.boot(term_grid, seed_value)
 	_status(err if err else "")
+	_patch_esc_label()
 	_light()
 
 
@@ -162,6 +164,14 @@ func _on_cell_clicked(col: int, row: int, button: int) -> void:
 	_after(cart.exec_line("%X %X %s" % [gx, gy, op]))
 
 
+## Standalone only: cart draws "Esc menu" for Direct parity; Esc here quits.
+func _patch_esc_label() -> void:
+	const Y := 0x12
+	const X := 0x49
+	for i in 4:
+		term_grid.put(X + i, Y, "quit"[i], 6, term_grid.bg_at(X + i, Y))
+
+
 func _after(err: String) -> void:
 	if cart.vm.ds.size() > 0:
 		err = "cart left %s on the data stack" % cart.vm.ds
@@ -169,6 +179,7 @@ func _after(err: String) -> void:
 	if cart.quit_requested():
 		halted = true
 	_status(err)
+	_patch_esc_label()
 	_light()
 
 
