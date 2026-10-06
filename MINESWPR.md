@@ -20,8 +20,8 @@ godot --headless --path . --import
 godot --path . res://scenes/Mineswpr.tscn            # random board
 godot --path . res://scenes/Mineswpr.tscn -- --seed 45
 
-# scene smoke: sends InputEventKeys for a short game plus one right-click,
-# prints the screen, "scene proof: PASS"
+# scene smoke: sends InputEventKeys for a short game plus one right-click
+# and a hover check ("hover proof: PASS"), prints the screen, "scene proof: PASS"
 godot --headless --path . res://scenes/Mineswpr.tscn -- --seed 45
 
 # screen proof vs arcade Direct: "proof: PASS (32 checks, 0 failed)"
@@ -32,6 +32,12 @@ In the scene, keys go to the cart: printable characters edit the line, Enter
 runs it, and Backspace deletes. Left click runs `x y ?`. Right click runs
 `x y +`, or `x y -` on a flag. F2 boots a fresh cart, `q` halts the cart (the
 original's exit hook), and Esc closes the window.
+
+Hover: the scene inks the `[` and `]` of the board cell under the mouse Y
+(11), like Direct's `|Y`. The host does this as an overlay, not the cart,
+because a full redraw costs about 90 ms. The overlay saves the bracket colors,
+is lifted before every cart call and put back after, so cart draws never wipe
+it and never see it.
 
 ### Screen proof
 
@@ -110,8 +116,10 @@ listed at the top of the cart. Buffers are at `$9000`-`$97FF`.
 
 ### Phase 3 gaps (still open)
 
-- **Hover** (`|Y` brackets under the mouse) is not ported. The side panel
-  still says `Esc menu` for parity with Direct; here Esc closes the window.
+- **Hover** is done, host-side (see Play above), because a cart redraw is too
+  slow for every mouse move.
+- The side panel still says `Esc menu` for parity with Direct; here Esc
+  closes the window.
 - **Cursor blink:** the cart turns the cursor on at each key. Direct renders a
   keypress with the previous blink state. The golden has the cursor on.
 - **32-bit cells:** a number above `7FFFFFFF` wraps (`FFFFFFFF` shows as `-1`,
