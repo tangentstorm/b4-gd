@@ -42,7 +42,7 @@ printf '%s\n' '%C' '1 2 ad' '?d' '%q' \
 
 ## Next: mineswpr in b4
 
-1. Port grid / flood / flag / prod (same bit layout as arcade Direct).
+1. ~~Port grid / flood / flag / prod~~ -- done: see [MINESWPR.md](MINESWPR.md).
 2. Draw with `tm` (or TermGrid `put`/`puts`) — `vt'` colors as ANSI 0–15.
 3. Shell `mswp'` needs character input (`tm` `r`/`k` + typed line).
 4. Optional arcade edition host; **keep** Direct + Enhanced GDScript.

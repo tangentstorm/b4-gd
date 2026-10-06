@@ -15,6 +15,11 @@ static func _err(msg: String) -> void:
 	if _first_error.is_empty():
 		_first_error = msg
 
+## Address of a :name label from the last run(), or -1.
+static func label(name: String) -> int:
+	return int(_labels.get(name, -1))
+
+
 ## Assemble source into vm. Returns "" on success, or first assembler error.
 static func run(vm: B4VM, source: String) -> String:
 	_labels.clear()

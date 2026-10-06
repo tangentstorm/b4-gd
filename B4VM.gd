@@ -10,6 +10,8 @@ var ip = 0x100
 var vw = 4 # value width in bytes
 var st = 1 # run state (1=running, 0=halted)
 var dbg = 0
+var max_steps := 100000 ## imrun step guard (raise for long-running words)
+var guard_hit := false ## true if the last imrun stopped at max_steps
 
 ## Custom ops registered via add_op (byte -> {name, fn})
 var _custom_ops: Dictionary = {} # int -> Callable
@@ -123,9 +125,12 @@ func _go(a):
 	ip = maxi(0x100, a) - 1
 
 func _i8(a) -> int:
+	# signed byte (two's complement, like JS b4 `(ram[a]<<24)>>24`).
+	# Was -(r & 0x7F) - 1, which sent every backward hop (.o / nx) to the
+	# wrong address: $FF meant -128 instead of -1.
 	var r = ram[a]
 	if r >= 0x80:
-		r = -(r & 0x7F) - 1
+		r -= 0x100
 	return r
 
 func _hop(): _go(ip + _i8(ip + 1))
@@ -370,10 +375,13 @@ func imrun(a: int) -> void:
 	cput(0)
 	ip = a
 	var guard = 0
-	while st and not dbg and guard < 100000:
+	guard_hit = false
+	while st and not dbg and guard < max_steps:
 		if not step():
 			break
 		guard += 1
+	if st and not dbg and guard >= max_steps:
+		guard_hit = true
 	if not dbg:
 		ip = cpop()
 
