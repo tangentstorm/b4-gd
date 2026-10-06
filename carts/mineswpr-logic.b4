@@ -2,7 +2,7 @@
 #
 # Ports the logic headings of tangentstorm/gitweb mineswpr.org (Retro Forth 11,
 # 2013) to b4 words, matching arcade games/mineswpr/direct/mineswpr_logic.gd.
-# No draw, no mswp shell yet (Phase 3).
+# Draw and the mswp' shell are in carts/mineswpr-play.b4 (Phase 3).
 #
 # Cell bit layout (same as the original and arcade Direct):
 #   bit 0 = mine   bit 1 = cover   bit 2 = flag

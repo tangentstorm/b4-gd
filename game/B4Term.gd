@@ -10,8 +10,14 @@ class_name B4Term
 ##   's' (-)      clear screen
 ##   'l' (-)      clear to end of line
 ##   'c' (- x y)  cursor position
-##   'k' (- f)    keypressed? (-1 / 0) — stub for now
-##   'r' (- c)    readkey — stub (pushes 0)
+##   'w' (f -)    autowrap: nonzero = wrap at the right edge (default), 0 = clip
+##   'k' (- f)    keypressed? (-1 / 0): is there a key in the queue
+##   'r' (- c)    readkey: pop the oldest queued key code (0 if none)
+##
+## The host feeds keys with push_key(code) (e.g. from _unhandled_key_input:
+## unicode for printable chars, 13 Enter, 8 Backspace), then runs a cart word
+## that drains them with k / r. imrun is synchronous, so a cart never blocks
+## waiting for a key.
 
 const OP_TM := 0xBE
 
@@ -19,6 +25,7 @@ var vm: B4VM
 var grid: TermGrid
 var cur := Vector2i(0, 0)
 var fg: int = 7
+var autowrap := true ## tm 'w'; off = chars past the right edge are dropped
 var bg: int = 0
 var _key_queue: PackedInt32Array = PackedInt32Array()
 
@@ -53,6 +60,8 @@ func _tm() -> void:
 			bg = 0
 		"l":
 			_clreol()
+		"w":
+			autowrap = vm.dpop() != 0
 		"c":
 			vm.dput(cur.x)
 			vm.dput(cur.y)
@@ -81,9 +90,11 @@ func _emit(code: int) -> void:
 	if code == 13: # \r
 		cur.x = 0
 		return
+	if cur.x >= grid.grid_wh.x:
+		return # only reachable with autowrap off: clip
 	grid.put(cur.x, cur.y, String.chr(code), fg, bg)
 	cur.x += 1
-	if cur.x >= grid.grid_wh.x:
+	if autowrap and cur.x >= grid.grid_wh.x:
 		cur.x = 0
 		cur.y = mini(cur.y + 1, grid.grid_wh.y - 1)
 
