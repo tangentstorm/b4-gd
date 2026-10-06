@@ -1,0 +1,50 @@
+[gd_scene load_steps=3 format=3 uid="uid://b4helloterm01"]
+
+[ext_resource type="Script" path="res://scenes/HelloTerm.gd" id="1_main"]
+[ext_resource type="Script" path="res://game/TermGrid.gd" id="2_term"]
+
+[node name="HelloTerm" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="BG" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.05, 0.08, 1)
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="VBox"]
+layout_mode = 2
+text = "b4-gd · hello-term (TermGrid / tm)"
+
+[node name="StatusLabel" type="Label" parent="VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "…"
+
+[node name="Center" type="CenterContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="TermGrid" type="Control" parent="VBox/Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(1200, 650)
+layout_mode = 2
+script = ExtResource("2_term")
