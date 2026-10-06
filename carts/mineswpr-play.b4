@@ -1,0 +1,247 @@
+# mineswpr-play -- draw, show, (x,y) and the mswp' shell of mineswpr.org, in b4
+# (arcade #45 Phase 3).  Load it after carts/mineswpr-logic.b4: the host
+# assembles the two __code__ sections as one program (see MINESWPR.md).
+#
+# Screen: ports arcade games/mineswpr/direct/mineswpr_screen.gd cell for cell
+# (same text, columns and vt' colors; |k..|w = 0..7, |K..|W = 8..F) through the
+# tm terminal device.  Shell: ports direct/mswp_shell.gd plus the line editor
+# of direct/game.gd, reading keys with tm k / tm r.
+#
+# Entry points for the host (call by label with imrun):
+#   keys   ( - )      drain the tm key queue: printable chars edit the line,
+#                     Enter (0D/0A) runs it, Backspace (08/7F) deletes
+#   exec   ( a n - )  run a command line stored at a (mouse clicks use this)
+#   blink  ( - )      toggle the prompt cursor and redraw the prompt row
+#   draw   ( - )      full redraw
+# Z goes to -1 when the player types q (mineswpr-exit-hook); the host decides
+# what quitting means.
+#
+# Registers (the logic cart owns G N F O K I J X Y):
+#   A = active cell shown by the last full draw (-1 = none)
+#   B = cursor on?          C = bracket color (draw scratch)
+#   D V M = number parser scratch (pointer, value/count, neg)
+#   E = error token length  H = end of the line being parsed
+#   L = input line length   P = parse pointer    R = draw row
+#   S = shell stack depth   T U = token start / length
+#   W = length of the "last:" command            Z = quit requested
+#
+# Buffers: $9000 input line, $9100 error token, $9180 last command,
+# $9200 shell stack (256 cells), $9700 exec buffer for the host.
+# Writes use wv (4 bytes), so every buffer has slack after its max length.
+
+__code__
+
+# -- tm device words --------------------------------------------------------
+:at  lb 'g tm rt ;
+:ink  lb 'a tm rt ;
+:emit  lb 'e tm rt ;
+:sbyte  rv lb FF an rt ;
+# put" ( - ) emit the zero-terminated string that follows the call
+:put"
+  cd
+  .w du sbyte du .d emit c1 ad .o
+  zp c1 ad dc rt ;
+# type ( a n - )
+:type  .w du .d sw du sbyte emit c1 ad sw n1 ad .o zp zp rt ;
+:spaces  .w du .d lb 20 emit n1 ad .o zp rt ;
+:dashes  lb 43 .w du .d lb '- emit n1 ad .o zp rt ;
+# digit ( n - ch ) one hex digit
+:digit  du lb 0A lt .i lb 30 .e lb 37 .t ad rt ;
+# hex. ( n - ) unsigned hex, no leading zeros
+:hex.  du ls FC sh li $0FFFFFFF an du .i hex. .e zp .t lb 0F an digit emit rt ;
+# num. ( n - ) signed hex like Direct's stack_text: -%X for negatives
+:num.  du c0 lt .i lb '- emit c0 sw sb .t hex. rt ;
+# dec. ( n - ) n >= 0
+:dec.  du lb 0A dv du .i dec. .e zp .t lb 0A md lb 30 ad emit rt ;
+
+# -- shell stack --------------------------------------------------------------
+0 !L  0 !S  0 !E  0 !W  0 !Z  -1 !A  -1 !B
+:ustk  c4 ml li $9200 ad rt ;
+# upush ( n - ) ignored when the stack is full (256 cells)
+:upush  @S li $100 lt .i @S ustk wv c1 +S zp .e zp .t rt ;
+# upop ( - n )
+:upop  n1 +S c1 sb ustk rv rt ;
+# stack. ( - ) "<depth> n n ..."
+:stack.
+  lb '< emit @S dec. lb '> emit
+  c0 .w du @S lt .d du ustk rv lb 20 emit num. c1 ad .o zp rt ;
+
+# -- the cells (draw-cells) ---------------------------------------------------------
+# glyph ( c - ch ink hide )
+:glyph
+  du c0 has? @O an .i zp lb 'X c1 n1 rt .t
+  du c2 has? .i zp lb '! lb 09 c0 rt .t
+  du c1 has? .i zp lb '- lb 07 c0 rt .t
+  armed-neighbor-count du .i lb 30 ad lb 0C n1 rt .t
+  zp lb '- lb 04 n1 rt ;
+# (x,y) ( c - ) one cell as "[?] "; R = grid row
+:(x,y)
+  du @A eq !C
+  glyph
+  @C .i zp lb 05 .e .i c0 .e @R c1 an .i lb 08 .e lb 06 .t .t .t !C
+  @C ink lb '[ emit ink emit @C ink lb '] emit lb 20 emit rt ;
+# row. ( - ) grid row R
+:row.
+  c0 @R lb 03 ad at put" '' 00
+  @R c1 an .i lb 07 .e lb 0E .t ink
+  @R digit emit lb 20 emit
+  c0 .w du lb 10 lt .d du @R lb 10 ml ad (x,y) c1 ad .o zp rt ;
+# show ( - ) header + 16 rows
+:show
+  c0 c2 at lb 0E ink
+  put" ''''''0''''1''''2''''3''''4''''5''''6''''7''''8''''9''''A''''B''''C''''D''''E''''F''' 00
+  c0 !R .w @R lb 10 lt .d row. c1 +R zp .o rt ;
+
+# -- the playing field (draw-field) --------------------------------------------------
+# cleared? ( - f ) every safe cell uncovered (Direct's side panel; not original)
+:cleared?
+  n1 c0 .w du li $100 lt .d du c>a rv lb 03 an c2 eq .i sw zp c0 sw .t c1 ad .o zp rt ;
+:title
+  @O .i lb 09 ink lb 1E spaces put" 'G'A'M'E''O'V'E'R'!' 00 rt .t
+  lb 0B ink lb 1C spaces put" 'M'I'N'E'S'W'P'R'.'R'X'E 00 rt ;
+:help1
+  c0 lb 14 at lb 02 ink put" 't'y'p'e''c'm'd''a't' 00 lb 27 emit
+  lb 07 ink put" 'o'k 00 lb 02 ink lb 27 emit put" ':'' 00
+  lb 0B ink lb '+ emit lb 06 ink put" ''=''f'l'a'g'' 00
+  lb 0B ink lb '- emit lb 06 ink put" ''=''u'n'f'l'a'g'' 00
+  lb 0B ink lb '? emit lb 06 ink put" ''=''p'r'o'd''f'o'r''m'i'n'e' 00
+  lb 0B ink lb 'q emit lb 06 ink put" ''=''q'u'i't 00 rt ;
+:help2
+  c0 lb 15 at lb 02 ink put" 'c'm'd''f'o'r'm'a't':' 00
+  lb 0B ink put" 'x''y' 00 lb 06 ink lb '[ emit lb 0B ink put" '+'-'? 00
+  lb 06 ink lb '] emit put" ''' 00 lb 02 ink put" 'e'x'a'm'p'l'e's':' 00
+  lb 07 ink put" '5''C''+ 00 lb 03 ink put" ''a''b''- 00
+  lb 0F ink put" ''2''9''? 00 lb 09 ink put" ''q 00
+  lb 0B ink put" ''''r' 00 lb 06 ink put" '=''r'e's't'a'r't' 00 rt ;
+# status ( - ) row 23: .s, then "word ?" and the game over note
+:status
+  c0 lb 17 at stack.
+  @E .i put" '' 00 lb 01 ink li $9100 @E type put" ''? 00 .t
+  @O .i put" '' 00 lb 09 ink put" 'g'a'm'e''o'v'e'r'. 00
+    lb 01 ink put" ''t'y'p'e' 00 lb 03 ink lb 'r emit
+    lb 01 ink put" '''t'o''r'e's't'a'r't 00 .t rt ;
+# prompt. ( - ) row 24: "ok " input and the cursor block
+:prompt.
+  c0 lb 18 at lb 07 ink lb 'l tm
+  c0 lb 18 at lb 0F ink put" 'o'k' 00 lb 07 ink
+  li $9000 @L type
+  @B .i lb 77 ink lb 20 emit .t rt ;
+# side ( - ) mouse help + counters at column 69 (Direct's side panel)
+:side
+  lb 45 lb 03 at lb 02 ink put" 'm'o'u's'e': 00
+  lb 45 lb 04 at lb 0B ink lb 'L emit lb 47 lb 04 at lb 06 ink put" '?''p'r'o'd 00
+  lb 45 lb 05 at lb 0B ink lb 'R emit lb 47 lb 05 at lb 06 ink put" '+'/'-''f'l'a'g 00
+  lb 45 lb 07 at lb 02 ink put" 'f'l'a'g's 00 lb 4B lb 07 at lb 0F ink @F dec.
+  lb 45 lb 08 at lb 02 ink put" 'm'i'n'e's 00 lb 4B lb 08 at lb 0F ink @N dec.
+  @W .i lb 45 lb 0A at lb 02 ink put" 'l'a's't': 00
+    lb 45 lb 0B at lb 07 ink li $9180 @W type .t
+  @O c0 eq .i cleared? .i lb 45 lb 0D at lb 0A ink put" 'A'L'L''C'L'E'A'R 00 .t .t
+  lb 45 lb 12 at lb 0B ink put" 'E's'c 00 lb 49 lb 12 at lb 06 ink put" 'm'e'n'u 00 rt ;
+# draw ( - ) the whole screen
+:draw
+  lb 's tm
+  c0 c0 at title
+  c0 c1 at lb 04 ink dashes lb 07 ink
+  show help1 help2
+  c0 lb 16 at lb 04 ink dashes lb 08 ink
+  status prompt. side rt ;
+
+# -- chain: mswp' ---------------------------------------------------------------------
+# tok1 ( ch - f ) is the token exactly this one char?
+:tok1  @U c1 eq .i @T sbyte eq .e zp c0 .t rt ;
+# tok" ( - f ) does the token equal the zero-terminated string after the call?
+:tok"
+  cd du !D n1 !M c0 !V
+  .w @V @U lt .d @D @V ad sbyte @T @V ad sbyte eq @M an !M c1 +V zp .o
+  @D @U ad sbyte c0 eq @M an !M
+  .w du sbyte .d c1 ad .o
+  c1 ad dc @M rt ;
+# hexval ( ch - d ) d = -1 if ch is not a hex digit (either case)
+:hexval
+  du lb 30 lt .i zp n1 rt .t
+  du lb 3A lt .i lb 30 sb rt .t
+  du lb 41 lt .i zp n1 rt .t
+  du lb 47 lt .i lb 37 sb rt .t
+  du lb 61 lt .i zp n1 rt .t
+  du lb 67 lt .i lb 57 sb rt .t
+  zp n1 rt ;
+# hex? ( - n -1 | 0 ) the token as a Retro hex number, the way Direct's
+# parse_hex reads it with Godot: one optional leading '-' (if more chars
+# follow), at most 8 chars after it, then is_valid_hex_number (which allows one
+# more sign) and hex_to_int (where a '+' sign yields 0).
+:hex?
+  @T !D @U !V c0 !M
+  @D sbyte lb 2D eq c1 @V lt an .i n1 !M c1 +D zp n1 +V zp .t
+  @V c0 eq lb 08 @V lt or .i c0 rt .t
+  c1
+  @V c1 eq c0 eq .i
+    @D sbyte lb 2D eq .i zp n1 c1 +D zp n1 +V zp .e
+    @D sbyte lb 2B eq .i zp c0 c1 +D zp n1 +V zp .t .t
+  .t
+  c0
+  .w @V .d
+    @D sbyte hexval du c0 lt .i zp zp zp c0 rt .t
+    sw lb 04 sh or
+    c1 +D zp n1 +V zp
+  .o
+  ml @M .i c0 sw sb .t n1 rt ;
+# cell-ok? ( - c -1 | 0 ) if-cell-ok: pop y x; on the board -> active-cell
+:cell-ok?
+  @S c2 lt .i c0 rt .t
+  upop upop sw
+  ov ov inbounds? .i cell du !K n1 rt .t
+  zp zp c0 rt ;
+# bad ( - ) remember "word ?" for the status line
+:bad
+  @U !E c0 .w du @E lt .d du @T ad sbyte ov li $9100 ad wv c1 ad .o zp rt ;
+# a-f ( - f ) push $A..$F for the words a b c d e f
+:a-f
+  @U c1 eq .i @T sbyte du lb 61 lt c0 eq ov lb 67 lt an
+    .i lb 57 sb upush n1 rt .t zp .t c0 rt ;
+:eval-token
+  lb '+ tok1 .i cell-ok? .i flag+ .t rt .t
+  lb '- tok1 .i cell-ok? .i flag- .t rt .t
+  lb '? tok1 .i cell-ok? .i prod .t rt .t
+  a-f .i rt .t
+  lb 'r tok1 .i game-new rt .t
+  lb 'q tok1 .i n1 !Z rt .t
+  tok" 'p'l'a'y 00 .i c0 !S game-new rt .t
+  tok" 'r'e's'e't 00 .i c0 !S rt .t
+  hex? .i upush rt .t
+  bad rt ;
+:pbyte  @P sbyte rt ;
+:skip-sp  .w @P @H lt .i pbyte lb 20 eq .e c0 .t .d c1 +P zp .o rt ;
+:skip-word  .w @P @H lt .i pbyte lb 20 eq c0 eq .e c0 .t .d c1 +P zp .o rt ;
+# next-token ( - f ) sets T U
+:next-token  skip-sp @P @H lt .i @P !T skip-word @P @T sb !U n1 .e c0 .t rt ;
+# eval ( a n - ) run every token of a line
+:eval  c0 !E ov ad !H !P .w next-token .d eval-token .o rt ;
+# remember ( a n - ) last := the line without outer spaces, max 11 chars
+:remember
+  ov ad !V !D
+  .w @D @V lt .i @V c1 sb sbyte lb 20 eq .e c0 .t .d n1 +V zp .o
+  .w @D @V lt .i @D sbyte lb 20 eq .e c0 .t .d c1 +D zp .o
+  @V @D sb du .i
+    du lb 0B lt c0 eq .i zp lb 0B .t !W
+    c0 .w du @W lt .d du @D ad sbyte ov li $9180 ad wv c1 ad .o zp
+  .e zp .t rt ;
+# exec ( a n - ) run a line, then the original's revectored ok: draw.
+# Like show-active-cell, the active cell is shown by this draw, then forgotten.
+:exec  ov ov eval remember @K !A n1 !K draw rt ;
+
+# -- line editor + host entry points ------------------------------------------------
+:enter  n1 !B @L c0 !L li $9000 sw exec rt ;
+:rubout  @L .i n1 +L zp .t n1 !B prompt. rt ;
+:addch  @L lb 46 lt .i @L li $9000 ad wv c1 +L zp .e zp .t n1 !B prompt. rt ;
+# key ( ch - )
+:key
+  du lb 0D eq ov lb 0A eq or .i zp enter rt .t
+  du lb 08 eq ov lb 7F eq or .i zp rubout rt .t
+  du lb 20 lt ov lb 7E sw lt or .i zp rt .t
+  addch rt ;
+:keys  .w lb 'k tm .d lb 'r tm key .o rt ;
+:blink  @B c0 eq !B prompt. rt ;
+
+# -- mineswpr-play: no autowrap (Direct clips at column 80), new game, draw ----------
+c0 'w tm
+game-new draw

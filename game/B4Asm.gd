@@ -164,7 +164,7 @@ static func _macro(vm: B4VM, tok: String) -> void:
 			var dist2 := vm.here() - slot_d
 			vm.ram[slot_d] = (dist2 + 1) & 0xFF
 		_:
-			push_warning("B4Asm: unknown macro '%s'" % tok)
+			_err("B4Asm: unknown macro '%s'" % tok)
 
 static func _handle(vm: B4VM, tok: String, state: int) -> int:
 	var t := tok[0] if tok.length() > 0 else ""
@@ -175,7 +175,7 @@ static func _handle(vm: B4VM, tok: String, state: int) -> int:
 		if state == 1:
 			_macro(vm, tok)
 		else:
-			push_warning("B4Asm: macro %s outside ASM" % tok)
+			_err("B4Asm: macro %s outside ASM" % tok)
 		return state
 	# :R / :name — enter ASM; bind register or label
 	if t == ":":
@@ -216,7 +216,7 @@ static func _handle(vm: B4VM, tok: String, state: int) -> int:
 			else:
 				vm.dput(v)
 		else:
-			push_warning("B4Asm: bad $ literal %s" % tok)
+			_err("B4Asm: bad $ literal %s" % tok)
 		return state
 	# register ops
 	if _is_reg_op(tok):
@@ -262,5 +262,7 @@ static func _handle(vm: B4VM, tok: String, state: int) -> int:
 		else:
 			vm.dput(v2)
 		return state
-	push_warning("B4Asm: unknown token '%s'" % tok)
+	# An unknown token used to be a warning and assembled to nothing, so a typo
+	# or a forward reference to a later label silently dropped code.
+	_err("B4Asm: unknown token '%s'" % tok)
 	return state

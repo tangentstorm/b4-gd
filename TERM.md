@@ -21,7 +21,9 @@ Smallest shippable terminal spike for rewriting mineswpr in b4.
 | `e` | c | emit char (`tw`) |
 | `l` | — | clear to end of line |
 | `c` | — x y | cursor position |
-| `k` / `r` | key stubs | for typed `mswp'` later |
+| `w` | f | autowrap on (default) / off (clip at column 79) |
+| `k` | — f | key waiting? (-1 / 0) |
+| `r` | — c | read the oldest queued key (0 if none); host queues with `push_key` |
 
 ## Run hello-term
 
@@ -43,8 +45,8 @@ printf '%s\n' '%C' '1 2 ad' '?d' '%q' \
 ## Next: mineswpr in b4
 
 1. ~~Port grid / flood / flag / prod~~ -- done: see [MINESWPR.md](MINESWPR.md).
-2. Draw with `tm` (or TermGrid `put`/`puts`) — `vt'` colors as ANSI 0–15.
-3. Shell `mswp'` needs character input (`tm` `r`/`k` + typed line).
+2. ~~Draw with `tm`~~ and 3. ~~shell `mswp'` on `tm` `k`/`r`~~ -- done:
+   `carts/mineswpr-play.b4` + `scenes/Mineswpr.tscn`, see [MINESWPR.md](MINESWPR.md).
 4. Optional arcade edition host; **keep** Direct + Enhanced GDScript.
 
 Do **not** embed Retro/Ngaro. Do **not** replace arcade's shipping mineswpr.

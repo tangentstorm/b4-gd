@@ -17,6 +17,7 @@ var guard_hit := false ## true if the last imrun stopped at max_steps
 var _custom_ops: Dictionary = {} # int -> Callable
 var _custom_names: Dictionary = {} # String -> int
 var _custom_bytes: Dictionary = {} # int -> String
+var _dis_cache: Dictionary = {} ## opcode byte -> op name, for step()
 
 const REGS = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
 const RAM_SIZE = 65536
@@ -357,8 +358,11 @@ func step() -> bool:
 		fn.call()
 		ip += 1
 		return true
-	# Named / enum ops via string dispatch
-	var op = dis(opb)
+	# Named / enum ops via string dispatch (dis() scans the enum; cache it)
+	var op = _dis_cache.get(opb, "")
+	if op == "":
+		op = dis(opb)
+		_dis_cache[opb] = op
 	if not run_op(op):
 		print("step: unknown op [", op, "=", opb, "] at ram[", ip, "]")
 		return false
